@@ -32,13 +32,13 @@ class WriteFuses(AModule):
             "spi_baudrate": {"Value": "", "Required": True, "Type": "int",
                              "Description": "set SPI baudrate (1000000 = 1MHz) maximum = 50MHz", "Default": 1000000},
             "low_fuse": {"Value": "", "Required": False, "Type": "hex",
-                         "Description": "Low fuse hexadecimal value (Format: 0xXX)", "Default": ""},
+                         "Description": "Low fuse hexadecimal value (Format: 0xCA)", "Default": ""},
             "high_fuse": {"Value": "", "Required": False, "Type": "hex",
-                          "Description": "High fuse hexadecimal value (Format: 0xXX)", "Default": ""},
+                          "Description": "High fuse hexadecimal value (Format: 0xFE)", "Default": ""},
             "extended_fuse": {"Value": "", "Required": False, "Type": "hex",
-                              "Description": "Extended fuse hexadecimal value (Format: 0xXX)", "Default": ""},
+                              "Description": "Extended fuse hexadecimal value (Format: 0xBE)", "Default": ""},
             "lock_bits": {"Value": "", "Required": False, "Type": "hex",
-                          "Description": "Lock bits hexadecimal value (Format: 0xXX)", "Default": ""},
+                          "Description": "Lock bits hexadecimal value (Format: 0xEF)", "Default": ""},
         }
         self.dependencies.append("owfmodules.avrisp.device_id>=1.0.0")
 
@@ -53,38 +53,46 @@ class WriteFuses(AModule):
         return device_id
 
     def write_fuses(self, spi_interface, device):
-        read_low_fuse = b'\x50\x00\x00'
-        read_high_fuse = b'\x58\x08\x00'
-        read_extended_fuse = b'\x50\x08\x00'
+        write_low_fuse = b'\xAC\xA0\x00'
+        write_high_fuse = b'\xAC\xA8\x00'
+        write_extended_fuse = b'\xAC\xA4\x00'
 
         if len(device["fuse_low"]) > 0:
-            spi_interface.transmit(read_low_fuse)
-            low_fuse = spi_interface.receive(1)[0]
-            self.logger.handle("Low fuse settings (Byte value: {})".format(hex(low_fuse)), self.logger.RESULT)
-            self.print_table(self.parse_fuse(device["fuse_low"], low_fuse), ["Fuse name", "Status", "Value", "Mask"])
+            if self.options["low_fuse"]["Value"] != "":
+                spi_interface.transmit(write_low_fuse + bytes([self.options["low_fuse"]["Value"]]))
+                self.logger.handle(f"Low fuse value written ({hex(self.options['low_fuse']['Value'])}).",
+                                   self.logger.RESULT)
+            else:
+                self.logger.handle("No low fuse set", self.logger.INFO)
 
         if len(device["fuse_high"]) > 0:
-            spi_interface.transmit(read_high_fuse)
-            high_fuse = spi_interface.receive(1)[0]
-            self.logger.handle("High fuse settings (Byte value: {})".format(hex(high_fuse)), self.logger.RESULT)
-            self.print_table(self.parse_fuse(device["fuse_high"], high_fuse), ["Fuse name", "Status", "Value", "Mask"])
+            if self.options["high_fuse"]["Value"] != "":
+                spi_interface.transmit(write_high_fuse + bytes([self.options["high_fuse"]["Value"]]))
+                self.logger.handle(f"High fuse value written ({hex(self.options['high_fuse']['Value'])}).",
+                                   self.logger.RESULT)
+            else:
+                self.logger.handle("No high fuse set", self.logger.INFO)
 
         if len(device["fuse_extended"]) > 0:
-            spi_interface.transmit(read_extended_fuse)
-            extended_fuse = spi_interface.receive(1)[0]
-            self.logger.handle("Extended fuse settings (Byte value: {})".format(hex(extended_fuse)), self.logger.RESULT)
-            self.print_table(self.parse_fuse(device["fuse_extended"], extended_fuse),
-                             ["Fuse name", "Status", "Value", "Mask"])
+            if self.options["extended_fuse"]["Value"] != "":
+                spi_interface.transmit(write_extended_fuse + bytes([self.options["extended_fuse"]["Value"]]))
+                self.logger.handle(f"extended fuse value written ({hex(self.options['low_fuse']['Value'])}).",
+                                   self.logger.RESULT)
+            else:
+                self.logger.handle("No extended fuse set", self.logger.INFO)
 
     def write_lockbits(self, spi_interface, device):
-        read_lockbits = b'\x58\x00\x00'
+        write_lockbits = b'\xAC\xE0\x00'
 
         if len(device["lock_bits"]) > 0:
-            spi_interface.transmit(read_lockbits)
-            lock_bits = spi_interface.receive(1)[0]
-            self.logger.handle("Lock bits settings (Byte value: {})".format(hex(lock_bits)), self.logger.RESULT)
-            self.print_table(self.parse_fuse(device["lock_bits"], lock_bits),
-                             ["Lock bit name", "Status", "Value", "Mask"])
+            if self.options["lock_bits"]["Value"] != "":
+                print(self.options["lock_bits"]["Value"])
+                print("Write lock bits")
+                spi_interface.transmit(write_lockbits + bytes([self.options["lock_bits"]["Value"]]))
+                self.logger.handle(f"Lock bits written ({hex(self.options['high_fuse']['Value'])}).",
+                                   self.logger.RESULT)
+            else:
+                self.logger.handle("No lock bits set", self.logger.INFO)
 
     def process(self):
         enable_mem_access_cmd = b'\xac\x53\x00\x00'
