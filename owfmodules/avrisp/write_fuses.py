@@ -18,7 +18,7 @@ class WriteFuses(AModule):
     def __init__(self, owf_config):
         super(WriteFuses, self).__init__(owf_config)
         self.meta.update({
-            'name': 'AVR read fuses and lock bits',
+            'name': 'AVR write fuses and lock bits',
             'version': '1.0.0',
             'description': 'Write the fuses and lock bits of AVR microcontrollers\n'
                            'Fuse settings can be calculated here: \nhttps://www.engbedded.com/fusecalc',
