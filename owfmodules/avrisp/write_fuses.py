@@ -131,7 +131,7 @@ class WriteFuses(AModule):
     def run(self):
         """
         Main function.
-        Get fuses and lock bits.
+        Write fuses and lock bits.
         :return: Nothing.
         """
         # If detect_octowire is True then detect and connect to the Octowire hardware. Else, connect to the Octowire
