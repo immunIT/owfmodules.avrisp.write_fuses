@@ -1,4 +1,4 @@
 # owfmodules.avrisp.write_fuses
 
-Module to program the fuses and lock bits of an AVR MCU through the ISP protocol.
-It use the SPI interface with a GPIO as reset line.
+Program the fuses and lock bits of AVR microcontrollers through the ISP protocol.
+It use the SPI interface and a GPIO as reset line.
