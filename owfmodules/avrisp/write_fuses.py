@@ -76,7 +76,7 @@ class WriteFuses(AModule):
         if len(device["fuse_extended"]) > 0:
             if self.options["extended_fuse"]["Value"] != "":
                 spi_interface.transmit(write_extended_fuse + bytes([self.options["extended_fuse"]["Value"]]))
-                self.logger.handle(f"Extended fuse value written ({hex(self.options['low_fuse']['Value'])}).",
+                self.logger.handle(f"Extended fuse value written ({hex(self.options['extended_fuse']['Value'])}).",
                                    self.logger.RESULT)
             else:
                 self.logger.handle("Extended fuse left unchanged", self.logger.INFO)
@@ -87,7 +87,7 @@ class WriteFuses(AModule):
         if len(device["lock_bits"]) > 0:
             if self.options["lock_bits"]["Value"] != "":
                 spi_interface.transmit(write_lockbits + bytes([self.options["lock_bits"]["Value"]]))
-                self.logger.handle(f"Lock bits written ({hex(self.options['high_fuse']['Value'])}).",
+                self.logger.handle(f"Lock bits written ({hex(self.options['lock_bits']['Value'])}).",
                                    self.logger.RESULT)
             else:
                 self.logger.handle("Lock bits left unchanged", self.logger.INFO)
