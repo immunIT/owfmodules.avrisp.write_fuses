@@ -19,7 +19,7 @@ class WriteFuses(AModule):
         super(WriteFuses, self).__init__(owf_config)
         self.meta.update({
             'name': 'AVR write fuses and lock bits',
-            'version': '1.0.4',
+            'version': '1.0.5',
             'description': 'Write the fuses and lock bits of AVR microcontrollers\n'
                            'Fuse settings can be calculated here: \nhttps://www.engbedded.com/fusecalc',
             'author': 'Jordan Ovrè / Ghecko <jovre@immunit.ch>, Paul Duncan / Eresse <pduncan@immunit.ch>'
@@ -30,7 +30,7 @@ class WriteFuses(AModule):
             "reset_line": {"Value": "", "Required": True, "Type": "int",
                            "Description": "GPIO used as the Reset line", "Default": 0},
             "spi_baudrate": {"Value": "", "Required": True, "Type": "int",
-                             "Description": "SPI frequency (1000000 = 1MHz) maximum = 50MHz", "Default": 1000000},
+                             "Description": "SPI frequency (1000000 = 1MHz) maximum = 50MHz", "Default": 245000},
             "low_fuse": {"Value": "", "Required": False, "Type": "hex",
                          "Description": "Low fuse hexadecimal value (Format: 0xCA)", "Default": ""},
             "high_fuse": {"Value": "", "Required": False, "Type": "hex",
@@ -41,6 +41,7 @@ class WriteFuses(AModule):
                           "Description": "Lock bits hexadecimal value (Format: 0xEF)", "Default": ""},
         }
         self.dependencies.append("owfmodules.avrisp.device_id>=1.0.0")
+        self.enable_mem_access_cmd = b'\xac\x53\x00\x00'
 
     def get_device_id(self, spi_bus, reset_line, spi_baudrate):
         device_id_module = DeviceID(owf_config=self.config)
@@ -52,6 +53,19 @@ class WriteFuses(AModule):
         device_id = device_id_module.run(return_value=True)
         return device_id
 
+    def do_transaction(self, spi_interface, reset, cmd, data, msg):
+        # Drive reset low
+        reset.status = 0
+        time.sleep(0.1)
+        # Enable Memory Access
+        spi_interface.transmit(self.enable_mem_access_cmd)
+        # SPI transmit cmd + data
+        spi_interface.transmit(cmd + data)
+        self.logger.handle(msg, self.logger.RESULT)
+        # Drive reset high
+        reset.status = 1
+        time.sleep(0.1)
+
     def write_fuses(self, spi_interface, device, reset):
         write_low_fuse = b'\xAC\xA0\x00'
         write_high_fuse = b'\xAC\xA8\x00'
@@ -59,43 +73,24 @@ class WriteFuses(AModule):
 
         if len(device["fuse_low"]) > 0:
             if self.options["low_fuse"]["Value"] != "":
-                # Drive reset low
-                reset.status = 0
-
-                spi_interface.transmit(write_low_fuse + bytes([self.options["low_fuse"]["Value"]]))
-                self.logger.handle(f"Low fuse value written ({hex(self.options['low_fuse']['Value'])}).",
-                                   self.logger.RESULT)
-                # Drive reset high
-                reset.status = 1
-                time.sleep(0.1)
+                # Write low fuses
+                self.do_transaction(spi_interface, reset, cmd=write_low_fuse, data=bytes([self.options["low_fuse"]["Value"]]),
+                                msg=f"Low fuse value written ({hex(self.options['low_fuse']['Value'])}).")
             else:
                 self.logger.handle("Low fuse left unchanged", self.logger.INFO)
 
         if len(device["fuse_high"]) > 0:
             if self.options["high_fuse"]["Value"] != "":
-                # Drive reset low
-                reset.status = 0
-
-                spi_interface.transmit(write_high_fuse + bytes([self.options["high_fuse"]["Value"]]))
-                self.logger.handle(f"High fuse value written ({hex(self.options['high_fuse']['Value'])}).",
-                                   self.logger.RESULT)
-                
-                # Drive reset high
-                reset.status = 1
-                time.sleep(0.1)
+                # Write high fuses
+                self.do_transaction(spi_interface, reset, cmd=write_high_fuse, data=bytes([self.options["high_fuse"]["Value"]]),
+                                msg=f"High fuse value written ({hex(self.options['high_fuse']['Value'])}).")
             else:
                 self.logger.handle("High fuse left unchanged", self.logger.INFO)
 
         if len(device["fuse_extended"]) > 0:
             if self.options["extended_fuse"]["Value"] != "":
-                # Drive reset low
-                reset.status = 0
-                spi_interface.transmit(write_extended_fuse + bytes([self.options["extended_fuse"]["Value"]]))
-                self.logger.handle(f"Extended fuse value written ({hex(self.options['extended_fuse']['Value'])}).",
-                                   self.logger.RESULT)
-                # Drive reset high
-                reset.status = 1
-                time.sleep(0.1)
+                self.do_transaction(spi_interface, reset, cmd=write_extended_fuse, data=bytes([self.options["extended_fuse"]["Value"]]),
+                                msg=f"Extended fuse value written ({hex(self.options['extended_fuse']['Value'])}).")
             else:
                 self.logger.handle("Extended fuse left unchanged", self.logger.INFO)
 
@@ -104,14 +99,12 @@ class WriteFuses(AModule):
 
         if len(device["lock_bits"]) > 0:
             if self.options["lock_bits"]["Value"] != "":
-                spi_interface.transmit(write_lockbits + bytes([self.options["lock_bits"]["Value"]]))
-                self.logger.handle(f"Lock bits written ({hex(self.options['lock_bits']['Value'])}).",
-                                   self.logger.RESULT)
+                self.do_transaction(spi_interface, reset, cmd=write_lockbits, data=bytes([self.options["lock_bits"]["Value"]]),
+                                msg=f"Lock bits written ({hex(self.options['lock_bits']['Value'])}).")
             else:
                 self.logger.handle("Lock bits left unchanged", self.logger.INFO)
 
     def process(self):
-        enable_mem_access_cmd = b'\xac\x53\x00\x00'
         spi_bus = self.options["spi_bus"]["Value"]
         reset_line = self.options["reset_line"]["Value"]
         spi_baudrate = self.options["spi_baudrate"]["Value"]
@@ -123,34 +116,14 @@ class WriteFuses(AModule):
             reset = GPIO(serial_instance=self.owf_serial, gpio_pin=reset_line)
             reset.direction = GPIO.OUTPUT
 
-            # Reset is active-low
-            reset.status = 1
-
             # Configure SPI with default phase and polarity
             spi_interface.configure(baudrate=spi_baudrate)
-            self.logger.handle("Enabling Memory Access...", self.logger.INFO)
-
-            # Drive reset low
-            reset.status = 0
-
-            # Enable Memory Access
-            spi_interface.transmit(enable_mem_access_cmd)
-            time.sleep(0.5)
-
-            # Drive reset high
-            reset.status = 1
 
             # Write fuses - This function manage the reset line (a reset cycle is needed for each fuse group)
             self.write_fuses(spi_interface, device, reset)
 
-            # Drive reset low
-            reset.status = 0
-
             # Write lock bits
             self.write_lockbits(spi_interface, device)
-
-            # Drive reset high
-            reset.status = 1
 
     def run(self):
         """
